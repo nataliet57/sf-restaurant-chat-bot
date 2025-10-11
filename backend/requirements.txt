@@ -1,0 +1,3 @@
+fastapi
+urllib3
+uvicorn
