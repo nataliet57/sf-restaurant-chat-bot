@@ -7,19 +7,26 @@ client = OpenSearch(
     verify_certs=False,
 )
 
-# Load restaurant data from JSON file
-with open('restaurants.json', 'r') as f:
-    documents = json.load(f)
+def search_restaurants(cuisine: str, postal_code: str | None = None, index: str = "restaurants"):
+    """Search restaurants by cuisine and optional postal code.
 
-bulk_data = []
-for doc in documents:
-    bulk_data.append({'index': {'_index': 'restaurants', '_id': doc['id']}})
-    bulk_data.append(doc)
+    Args:
+        cuisine: cuisine string to match (e.g. 'pizza').
+        postal_code: optional postal code to filter by.
+        index: OpenSearch index name.
 
-response = client.bulk(body=bulk_data)
+    Returns:
+        The raw search response from OpenSearch client.search().
+    """
+    # Build a boolean query that must match cuisine and optionally postal code
+    must_clauses = [
+        {"match": {"tags.cuisine": cuisine}}
+    ]
 
-search_result = client.search(
-    index="restaurants",
-    body={"query": {"match": {"tags.cuisine": "pizza"}}}
-)
-print("Pizza restaurants:", search_result)
+    if postal_code:
+        # Assuming postal code is stored at top-level field 'postal_code' in documents
+        must_clauses.append({"term": {"postal_code": postal_code}})
+
+    body = {"query": {"bool": {"must": must_clauses}}}
+
+    return client.search(index=index, body=body)
