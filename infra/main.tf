@@ -36,7 +36,7 @@ provider "aws" {
 locals {
   opensearch_domain_name = "sf-restaurant-opensearch"
   proxy_instance_name    = "sf-restaurant-opensearch-proxy"
-  proxy_ami_id           = "ami-123456"
+  proxy_ami_id           = "ami-03cf127a"
 }
 
 data "aws_caller_identity" "current" {}
@@ -386,15 +386,29 @@ resource "aws_iam_role_policy" "lambda_s3_policy" {
   })
 }
 
+# Lambda Layer resource
+resource "aws_lambda_layer_version" "python_dependencies" {
+  layer_name          = "python-dependencies"
+  description         = "Python dependencies for restaurant data pipeline"
+  filename            = "${path.module}/dependencies_layer.zip"
+  compatible_runtimes = ["python3.9"]
+}
+
+# First Lambda with layer
 resource "aws_lambda_function" "osm_query" {
   function_name = "query-openstreetmap-lambda"
   runtime       = "python3.9"
   handler       = "lambda_function.lambda_handler"
-  filename      = "${path.module}/lambda_with_deps.zip"
   role          = aws_iam_role.lambda_exec.arn
   timeout       = 300
   memory_size   = 512
 
+  # Simple ZIP with just code - no dependencies
+  filename      = "${path.module}/lambda_code_only.zip"
+  
+  # Attach the layer
+  layers = [aws_lambda_layer_version.python_dependencies.arn]
+  
   environment {
     variables = {
       S3_BUCKET = aws_s3_bucket.opensearch_artifacts.bucket
@@ -405,25 +419,26 @@ resource "aws_lambda_function" "osm_query" {
     Name = "query-openstreetmap-lambda"
   }
 
-  # ADD THIS CRITICAL BLOCK
   lifecycle {
-    ignore_changes = [
-      filename,
-      last_modified,
-      source_code_hash
-    ]
+    ignore_changes = [last_modified, source_code_hash]
   }
 }
 
+# Second Lambda with layer
 resource "aws_lambda_function" "s3_to_opensearch" {
   function_name = "s3-to-opensearch-loader"
   runtime       = "python3.9"
   handler       = "s3_to_opensearch_lambda.lambda_handler"
-  filename      = "${path.module}/lambda_with_deps.zip"
   role          = aws_iam_role.lambda_exec.arn
   timeout       = 300
   memory_size   = 512
 
+  # Simple ZIP with just code - no dependencies
+  filename      = "${path.module}/lambda_code_only.zip"
+  
+  # Attach the layer
+  layers = [aws_lambda_layer_version.python_dependencies.arn]
+  
   environment {
     variables = {
       S3_BUCKET       = aws_s3_bucket.opensearch_artifacts.bucket
@@ -433,6 +448,10 @@ resource "aws_lambda_function" "s3_to_opensearch" {
 
   tags = {
     Name = "s3-to-opensearch-loader"
+  }
+
+  lifecycle {
+    ignore_changes = [last_modified, source_code_hash]
   }
 }
 

@@ -31,8 +31,11 @@ def lambda_handler(event, context):
         
         # 2. Connect to OpenSearch
         opensearch_host = os.environ['OPENSEARCH_HOST']
+        if opensearch_host.startswith('[') and opensearch_host.endswith(']'):
+            opensearch_host = opensearch_host[1:-1]
+        opensearch_url = f"https://{opensearch_host}"
         opensearch = OpenSearch(
-            hosts=[{'host': opensearch_host, 'port': 443, 'scheme': 'https'}],
+            hosts=[opensearch_url],
             http_compress=True,
             verify_certs=False,
             connection_class=RequestsHttpConnection,

@@ -30,23 +30,3 @@ def search_restaurants(cuisine: str, postal_code: str | None = None, index: str 
     body = {"query": {"bool": {"must": must_clauses}}}
 
     return client.search(index=index, body=body)
-
-
-if __name__ == "__main__":
-    # When executed directly, perform the bulk indexing (once) and run an example search.
-    # Load restaurant data from JSON file
-    with open('restaurants.json', 'r') as f:
-        documents = json.load(f)
-
-    bulk_data = []
-    for doc in documents:
-        bulk_data.append({'index': {'_index': 'restaurants', '_id': doc['id']}})
-        bulk_data.append(doc)
-
-    # Bulk index documents (idempotent for this demo)
-    response = client.bulk(body=bulk_data)
-    print('Bulk index response:', response.get('errors', False))
-
-    # Example: search for pizza restaurants in postal code '94110'
-    search_result = search_restaurants('pizza', postal_code='94110')
-    print('Search result:', search_result)
